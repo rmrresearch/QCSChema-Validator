@@ -71,6 +71,7 @@ other SDFs. The ability to support multiple SDFs is thus important to ensure
 that The Project can be used with a variety of QC packages.
 
 **Notes**: 
+
 - JSON is probably the most important SDF to support. 
 - We should look for Python packages that can help with parsing SDFs.
 
@@ -106,6 +107,7 @@ consistent with the QCSchema standard.
 **Motivation**: This is the primary purpose of The Project.
 
 **Notes**:
+
 - Is there a canonical Pydantic implementation of QCSchema we can use?
 
 **Solution**: ???
@@ -123,6 +125,7 @@ may be removed. Thus, The Project must take the version into account when
 verifying correctness.
 
 **Notes**:
+
 - I suspect Pydantic may be able to help with this.
 
 **Solution**: ???
