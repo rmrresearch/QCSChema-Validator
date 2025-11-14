@@ -91,6 +91,7 @@ With out such a check, The Project may give false negatives/positives because,
 for example, a value is now where a key should be. 
 
 **Notes**:
+
 - Ideally the Python package used to parse the serialization language can also
   verify correctness.
 
@@ -142,6 +143,7 @@ Project can help QC package maintainers automatically identify how up-to-date
 their QC package is.
 
 **Notes**:
+
 - I expect this will just be the number of passed tests over the total number,
   assuming there is a test per piece of the standard.
 - In practice, I suspect coverage will need to be reported in conjunction
@@ -179,6 +181,7 @@ turn will help motivate QC package maintainers to keep their packages up-to-date
 with QCSchema.
 
 **Notes**:
+
 - For local deployment, we should provide a Python package that can be
   installed via ``pip``. N.b., ``pip`` works fine with Anaconda environments,
   but AFAIK the other way around is not true.
@@ -202,6 +205,7 @@ for QCSchema compliance, then it must always be up-to-date with the latest
 version of QCSchema.
 
 **Notes**:
+
 - I suspect this can be done through reflection/introspection features of Python
   and/or Pydantic.
 
