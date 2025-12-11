@@ -1,0 +1,20 @@
+[project]
+name = "qcschema-validator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Jacob Heflin", email = "jlheflin@iastate.edu" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "qcelemental @ git+https://github.com/MolSSI/QCElemental.git@next2025",
+    "qcengine"
+]
+
+[project.scripts]
+qcschema-validator = "qcschema_validator:main"
+
+[build-system]
+requires = ["uv_build>=0.9.11,<0.10.0"]
+build-backend = "uv_build"
