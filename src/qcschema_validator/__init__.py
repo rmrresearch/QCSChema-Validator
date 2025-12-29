@@ -50,5 +50,9 @@ def main() -> None:
                         optional_vals[name] = matches(data[name], field.annotation)
                         
 
-        
-    print("This is from the __init__ file")
+    print("Required Value Coverage:")
+    for key, value in required_vals.items():
+            print("\t", key + ": ", value)
+    print("Optional Value Coverage:")
+    for key, value in optional_vals.items():
+            print("\t", key + ": ", value)
