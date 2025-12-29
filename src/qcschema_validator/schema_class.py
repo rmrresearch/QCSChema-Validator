@@ -7,9 +7,8 @@ schemas = {}
 # Grabs all the models from QCElemental
 for name, obj in vars(qc_models).items():
     if inspect.isclass(obj) and issubclass(obj, BaseModel) and obj is not BaseModel:
-        schemas [name] = obj
+        schemas[name] = obj
 
-print(schemas)
 
 
 def print_class_data(cls: type, tab = ""):
@@ -29,13 +28,3 @@ def print_class_data(cls: type, tab = ""):
     print(tab + "Optional: ")
     for (name, field_type) in optional:
         print(tab + f"\t{name} {field_type}")
-
-
-
-for name, schema in schemas.items():
-    print(name)
-    print_class_data(schema)
-    print()
-
-for name in schemas.keys():
-    print(name)
