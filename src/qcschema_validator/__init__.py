@@ -34,6 +34,7 @@ def main() -> None:
     for name, obj in schemas.items():
         if 'schema_name' in obj.model_fields.keys():
             if obj.model_fields['schema_name'].default == data['schema_name']:
+                schema_being_validated = data['schema_name']
                 required_vals = {}
                 optional_vals = {}
                 for name, field in obj.model_fields.items():
@@ -49,10 +50,12 @@ def main() -> None:
                     else:
                         optional_vals[name] = matches(data[name], field.annotation)
                         
-
+    print(f"Schema under scrutiny: {schema_being_validated}")
     print("Required Value Coverage:")
     for key, value in required_vals.items():
             print("\t", key + ": ", value)
+    print(f"Coverage of Required Values: {sum(required_vals.values()) / len(required_vals.values()):.0%}")
     print("Optional Value Coverage:")
     for key, value in optional_vals.items():
             print("\t", key + ": ", value)
+    print(f"Coverage of Optional Values: {sum(optional_vals.values()) / len(optional_vals.values()):.0%}")
