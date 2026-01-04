@@ -7,6 +7,8 @@ from typing import get_origin
 
 import numpy as np
 import tomli_w
+import xmltodict
+import xml
 import yaml
 from pydantic import ConfigDict, TypeAdapter, ValidationError
 
@@ -24,16 +26,31 @@ def parse_json(file_path: str):
             return json.load(f)
 
     except FileNotFoundError as e:
-        raise FileNotFoundError(f"Yo this toml file is not here: {path}") from e
+        raise FileNotFoundError(f"File not found: '{path}'") from e
 
     except PermissionError as e:
-        raise PermissionError(f"You ain't allowed to read this file: {path}") from e
+        raise PermissionError(f"Insufficient permissions to read file: '{path}'") from e
 
     except json.JSONDecodeError:
         raise ValueError(f"Failed to parse '{path.name}' as JSON\n") from None
 
 def parse_xml(file_path: str):
-    pass
+    path = Path(file_path)
+    try:
+        with path.open('rb') as f:
+            xmldict = xmltodict.parse(f)
+            first_key = list(xmldict.keys())[0]
+            return xmldict[first_key]
+
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"File not found: '{path}'") from e
+
+    except PermissionError as e:
+        raise PermissionError(f"Insufficient permissions to read file: '{path}'") from e
+
+    except xml.parsers.expat.ExpatError:
+        raise ValueError(f"Failed to parse '{path.name}' as XML\n") from None
+
 def parse_yaml(file_path: str):
     path = Path(file_path)
     try:
@@ -41,13 +58,13 @@ def parse_yaml(file_path: str):
             return yaml.safe_load(f)
 
     except FileNotFoundError as e:
-        raise FileNotFoundError(f"Yo this toml file is not here: {path}") from e
+        raise FileNotFoundError(f"File not found: '{path}'") from e
 
     except PermissionError as e:
-        raise PermissionError(f"You ain't allowed to read this file: {path}") from e
+        raise PermissionError(f"Insufficient permissions to read file: '{path}'") from e
 
     except yaml.YAMLError:
-        raise ValueError(f"Failed to parse '{path.name}' as JSON\n") from None
+        raise ValueError(f"Failed to parse '{path.name}' as YAML\n") from None
 
 def parse_toml(file_path: str):
     path = Path(file_path)
@@ -56,13 +73,13 @@ def parse_toml(file_path: str):
             return tomllib.load(f)
 
     except FileNotFoundError as e:
-        raise FileNotFoundError(f"Yo this toml file is not here: {path}") from e
+        raise FileNotFoundError(f"File not found: '{path}'") from e
 
     except PermissionError as e:
-        raise PermissionError(f"You ain't allowed to read this file: {path}") from e
+        raise PermissionError(f"Insufficient permissions to read file: '{path}'") from e
 
     except tomllib.TOMLDecodeError as e:
-        raise ValueError(f"{path} is either not toml or not valid toml: {e}") from e
+        raise ValueError(f"{path} is not valid TOML: {e}") from None
 
 PARSERS = {
     "json": parse_json,
