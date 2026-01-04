@@ -9,7 +9,10 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "qcelemental @ git+https://github.com/MolSSI/QCElemental.git@next2025",
-    "qcengine"
+    "qcengine",
+    "tomli-w",
+    "pyyaml",
+    "pytest"
 ]
 
 [project.scripts]
