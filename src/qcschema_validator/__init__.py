@@ -121,6 +121,11 @@ parser.add_argument(
                     choices=PARSERS.keys(),
                     help="Input file format"
                 )
+parser.add_argument(
+                    "--verbose",
+                    action="store_true",
+                    help="Print full schema coverage score"
+                )
 
 if len(sys.argv) == 1:
     parser.print_help()
@@ -158,7 +163,6 @@ def main() -> None:
                 for name, field in obj.model_fields.items():
                     if name not in data.keys():
                         if field.is_required():
-                            print(name)
                             required_cov[name] =  False
                             required_vals[name] =  None
                             continue
@@ -174,13 +178,15 @@ def main() -> None:
                         optional_vals[name] = data[name]
                         
     print(f"Schema under scrutiny: {schema_being_validated}")
-    print("Required Value Coverage:")
-    for key, value in required_cov.items():
-            print(f"\t{key}: {value}")
-            print(f"\t\tData: {required_vals[key]}", )
+    if args.verbose:
+        print("Required Value Coverage:")
+        for key, value in required_cov.items():
+                print(f"\t{key}: {value}")
+                print(f"\t\tData: {required_vals[key]}", )
     print(f"Coverage of Required Values: {sum(required_cov.values()) / len(required_cov.values()):.0%}")
-    print("Optional Value Coverage:")
-    for key, value in optional_cov.items():
-            print(f"\t{key}: {value}")
-            print(f"\t\tData: {optional_vals[key]}", )
+    if args.verbose:
+        print("Optional Value Coverage:")
+        for key, value in optional_cov.items():
+                print(f"\t{key}: {value}")
+                print(f"\t\tData: {optional_vals[key]}", )
     print(f"Coverage of Optional Values: {sum(optional_cov.values()) / len(optional_cov.values()):.0%}")
