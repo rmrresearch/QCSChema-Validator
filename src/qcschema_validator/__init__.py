@@ -67,7 +67,6 @@ def parse_toml(file_path: str):
 
 PARSERS = {
     "json": parse_json,
-    "xml": parse_xml,
     "yaml": parse_yaml,
     "toml": parse_toml
 }
@@ -167,7 +166,7 @@ def main() -> None:
         print("Required Value Coverage:")
         for key, value in required_cov.items():
             color = GREEN
-            if value == False:
+            if not value:
                 color = RED
             print(f"\t{key}: {color}{value}{RESET}")
             print(f"\t\tData: {required_vals[key]}", )
@@ -176,7 +175,7 @@ def main() -> None:
         print("Optional Value Coverage:")
         for key, value in optional_cov.items():
             color = GREEN
-            if value == False:
+            if not value:
                 color = RED
             print(f"\t{key}: {color}{value}{RESET}")
             print(f"\t\tData: {optional_vals[key]}", )
