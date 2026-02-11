@@ -12,8 +12,6 @@ dependencies = [
     "pyyaml",
     "qcelemental @ git+https://github.com/MolSSI/QCElemental.git@next2025",
     "qcengine",
-    "tomli-w",
-    "xmltodict"
 ]
 
 [project.scripts]

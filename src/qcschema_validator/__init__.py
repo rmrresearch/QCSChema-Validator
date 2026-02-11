@@ -6,13 +6,14 @@ from pathlib import Path
 from typing import get_origin
 
 import numpy as np
-import tomli_w
-import xmltodict
-import xml
 import yaml
 from pydantic import ConfigDict, TypeAdapter, ValidationError
 
 from .schema_class import schemas
+
+RED = "\033[31m"
+GREEN = "\033[32m"
+RESET = "\033[0m"
 
 argparse_config = {
     "prog": "qcschema_validator",
@@ -33,23 +34,6 @@ def parse_json(file_path: str):
 
     except json.JSONDecodeError:
         raise ValueError(f"Failed to parse '{path.name}' as JSON\n") from None
-
-def parse_xml(file_path: str):
-    path = Path(file_path)
-    try:
-        with path.open('rb') as f:
-            xmldict = xmltodict.parse(f)
-            first_key = list(xmldict.keys())[0]
-            return xmldict[first_key]
-
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f"File not found: '{path}'") from e
-
-    except PermissionError as e:
-        raise PermissionError(f"Insufficient permissions to read file: '{path}'") from e
-
-    except xml.parsers.expat.ExpatError:
-        raise ValueError(f"Failed to parse '{path.name}' as XML\n") from None
 
 def parse_yaml(file_path: str):
     path = Path(file_path)
@@ -123,6 +107,7 @@ parser.add_argument(
                 )
 parser.add_argument(
                     "--verbose",
+                    "-v",
                     action="store_true",
                     help="Print full schema coverage score"
                 )
@@ -181,12 +166,18 @@ def main() -> None:
     if args.verbose:
         print("Required Value Coverage:")
         for key, value in required_cov.items():
-                print(f"\t{key}: {value}")
-                print(f"\t\tData: {required_vals[key]}", )
+            color = GREEN
+            if value == False:
+                color = RED
+            print(f"\t{key}: {color}{value}{RESET}")
+            print(f"\t\tData: {required_vals[key]}", )
     print(f"Coverage of Required Values: {sum(required_cov.values()) / len(required_cov.values()):.0%}")
     if args.verbose:
         print("Optional Value Coverage:")
         for key, value in optional_cov.items():
-                print(f"\t{key}: {value}")
-                print(f"\t\tData: {optional_vals[key]}", )
+            color = GREEN
+            if value == False:
+                color = RED
+            print(f"\t{key}: {color}{value}{RESET}")
+            print(f"\t\tData: {optional_vals[key]}", )
     print(f"Coverage of Optional Values: {sum(optional_cov.values()) / len(optional_cov.values()):.0%}")
