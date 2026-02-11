@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess
 import difflib
 
-exe = "/home/jacob/Projects/QCSChema-Validator/.venv/bin/qcschema-validator"
+exe = "qcschema-validator"
 
 def run_validator(filename: str):
     args = [filename]
