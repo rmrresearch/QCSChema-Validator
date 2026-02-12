@@ -3,6 +3,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from qcschema_validator.parsing import parse_config
+from qcschema_validator.validate import validate_data_against_schemas
+
 
 TEST_DIR = Path(__file__).resolve().parent
 GOOD_FILES = sorted(TEST_DIR.glob("*good*"))
@@ -22,9 +25,6 @@ def test_cli_no_args_shows_help():
     proc = run_cli([])
     assert proc.returncode != 0
     assert "usage" in (proc.stderr + proc.stdout).lower()
-
-from qcschema_validator.parsing import parse_config
-from qcschema_validator.validate import validate_data_against_schemas
 
 @pytest.mark.parametrize("file", GOOD_FILES)
 def test_library_validate_good_files(file: Path):
