@@ -8,14 +8,29 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "pytest",
     "pyyaml",
     "qcelemental @ git+https://github.com/MolSSI/QCElemental.git@next2025",
-    "qcengine",
+    "numpy",
+    "pydantic>=2"
+    
 ]
 
 [project.scripts]
-qcschema-validator = "qcschema_validator:main"
+qcschema-validator = "qcschema_validator.cli:main"
+
+[project.optional-dependencies]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme"
+]
+
+dev = [
+    "pytest"
+]
+
+all = [
+    "qcschema-validator[docs,dev]"
+]
 
 [build-system]
 requires = ["uv_build>=0.9.11,<0.10.0"]
