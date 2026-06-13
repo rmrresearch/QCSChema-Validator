@@ -1,0 +1,62 @@
+name: 'QCSchema Validator'
+description: 'Validate a file against the QCSchema standard using qcschema-validator.'
+
+inputs:
+  file:
+    description: 'Path to the file to validate (relative to the calling repo root).'
+    required: true
+  mode:
+    description: '"validate" (default) — exit 0 if all required/declared fields pass. "coverage" — print coverage percentages.'
+    required: false
+    default: 'validate'
+  format:
+    description: 'Input file format (json, yaml, yml, toml). Inferred from extension if omitted.'
+    required: false
+    default: ''
+  subset:
+    description: 'Path to a subset file declaring which optional fields must be present. Format: {"<schema_name>": ["field1", ...]}'
+    required: false
+    default: ''
+  verbose:
+    description: 'Print per-field pass/fail detail ("true" or "false").'
+    required: false
+    default: 'false'
+  python-version:
+    description: 'Python version to use. Must be 3.12 or higher.'
+    required: false
+    default: '3.12'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install qcschema-validator
+      shell: bash
+      # GITHUB_ACTION_PATH points to .github/actions/validate/;
+      # three levels up is the repository root.
+      run: pip install "${GITHUB_ACTION_PATH}/../../../"
+
+    - name: Run qcschema-validator
+      shell: bash
+      run: |
+        ARGS=(--${{ inputs.mode }} "${{ inputs.file }}")
+        [ -n "${{ inputs.format }}" ] && ARGS+=(--format "${{ inputs.format }}")
+        [ -n "${{ inputs.subset }}" ] && ARGS+=(--subset "${{ inputs.subset }}")
+        [ "${{ inputs.verbose }}" = "true" ] && ARGS+=(--verbose)
+
+        OUTPUT=$(qcschema-validator "${ARGS[@]}" 2>&1)
+        EXIT_CODE=$?
+
+        echo "$OUTPUT"
+        {
+          echo "### QCSchema Validator"
+          echo '```'
+          echo "$OUTPUT"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        exit $EXIT_CODE
