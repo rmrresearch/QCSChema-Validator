@@ -29,16 +29,20 @@ data between different software packages.
 
 .. warning::
 
-   The QCSchema repository :ref:`<https://github.com/MolSSI/QCSchema>`__ is not
-   the working version. The working version is maintained as part of 
-   :ref:`QCElemental <https://github.com/MolSSI/QCElemental>`__.
+   The `QCSchema repository <https://github.com/MolSSI/QCSchema>`__ is not
+   the working version. The working version is maintained as part of
+   `QCElemental <https://github.com/MolSSI/QCElemental>`__.
 
-   - The current standard lives in the 
-     :ref:`next2025 <https://github.com/MolSSI/QCElemental/tree/next2025>`__
+   - The current standard lives in the
+     `next2025 <https://github.com/MolSSI/QCElemental/tree/next2025>`__
      branch of QCElemental.
-   - There is an active 
-     :ref:`PR <https://github.com/MolSSI/QCElemental/pull/377>`__ to update the
+   - There is an active
+     `PR #377 <https://github.com/MolSSI/QCElemental/pull/377>`__ to update the
      ``next2025`` branch to the latest version of QCSchema.
+
+The schema definitions are Pydantic v2 models available at
+``qcelemental.models.v2`` in the Python package. This is the programmatic
+entry point The Project uses to introspect the schema at runtime.
 
 ***************************
 Why do we need The Project?
@@ -70,12 +74,21 @@ adhering to QCSchema in those languages.
 other SDFs. The ability to support multiple SDFs is thus important to ensure 
 that The Project can be used with a variety of QC packages.
 
-**Notes**: 
+**Notes**:
 
-- JSON is probably the most important SDF to support. 
+- JSON is probably the most important SDF to support.
 - We should look for Python packages that can help with parsing SDFs.
 
-**Solution**: ???
+.. note::
+
+   The earlier assumption "for now we focus exclusively on JSON" is incorrect.
+   JSON, YAML, and TOML are all supported in the current implementation.
+
+**Solution**: A ``PARSERS`` dict in ``parsing.py`` maps file extensions
+(``json``, ``yaml``, ``yml``, ``toml``) to parser functions using the stdlib
+``json`` and ``tomllib`` modules and PyYAML. Format is inferred from the file
+extension or can be specified explicitly. New formats can be added by extending
+``PARSERS`` with an additional extension-to-parser mapping.
 
 SDF Correctness
 ===============
@@ -96,7 +109,11 @@ for example, a value is now where a key should be.
 - Ideally the Python package used to parse the serialization language can also
   verify correctness.
 
-**Solution**: ???
+**Solution**: Each parser in ``parsing.py`` catches the native library's
+decode error (``json.JSONDecodeError``, ``yaml.YAMLError``,
+``tomllib.TOMLDecodeError``) and re-raises it as a descriptive ``ValueError``.
+Because these parsers reject structurally invalid input before any schema
+validation occurs, SDF correctness is verified as a natural first step.
 
 QCSchema Correctness
 ====================
@@ -109,8 +126,14 @@ consistent with the QCSchema standard.
 **Notes**:
 
 - Is there a canonical Pydantic implementation of QCSchema we can use?
+  **Yes** — QCElemental's ``next2025`` branch provides a full Pydantic v2
+  implementation at ``qcelemental.models.v2``.
 
-**Solution**: ???
+**Solution**: ``validate.py`` selects the correct Pydantic model by matching
+``data["schema_name"]`` to the ``schema_name`` default on each model class in
+``qcelemental.models.v2``. It then iterates over ``model.model_fields`` and
+uses ``pydantic.TypeAdapter`` to validate each field value against its
+annotated type, recording pass/fail per field.
 
 QCSchema Versions
 =================
@@ -126,9 +149,16 @@ verifying correctness.
 
 **Notes**:
 
-- I suspect Pydantic may be able to help with this.
+- Pydantic helps with model introspection, but version dispatch is not yet
+  implemented. The current implementation is hardcoded to
+  ``qcelemental.models.v2`` and does not use ``data["schema_version"]`` to
+  select the schema.
 
-**Solution**: ???
+**Solution (proposed, not yet implemented)**: Use ``data["schema_version"]``
+to dynamically import the corresponding module (e.g.,
+``qcelemental.models.v1`` vs ``qcelemental.models.v2``). The special version
+``"latest"`` would map to the most recent available sub-module. This requires
+QCElemental to publish versioned sub-modules for each supported version.
 
 QCSchema Coverage
 =================
@@ -147,12 +177,18 @@ their QC package is.
 
 **Notes**:
 
-- I expect this will just be the number of passed tests over the total number,
-  assuming there is a test per piece of the standard.
+- Coverage is tracked per-field, not per-test. Each field in the Pydantic
+  model is independently checked against the data, so there is no need for
+  a separate test per field.
 - In practice, I suspect coverage will need to be reported in conjunction
   with the "QCSchema Subsets" consideration below.
 
-**Solution**: ???
+**Solution**: ``CoverageResult`` in ``validate.py`` stores
+``required_cov: Dict[str, bool]`` and ``optional_cov: Dict[str, bool]``
+recording pass/fail for each field. The ``required_score`` and
+``optional_score`` properties compute the fraction of passing fields (0.0–1.0).
+The CLI reports these as percentages and, in verbose mode (``--verbose``),
+prints each field name with a color-coded pass/fail indicator.
 
 QCSchema Subsets
 ================
@@ -164,18 +200,34 @@ of the QCSchema standard.
 Those packages should still be able to use The Project to verify correctness
 and should not be penalized for not implementing the entire standard.
 
-**Solution**: ???
+**Solution**: A subset file (JSON, YAML, or TOML) maps schema names to lists
+of optional fields the package claims to support:
+
+.. code-block:: json
+
+   {
+     "qcschema_molecule": ["molecular_charge", "molecular_multiplicity"]
+   }
+
+The file is passed to the CLI via ``--subset FILE``. Declared optional fields
+are tracked in a separate ``allowlisted_cov`` dict in ``CoverageResult`` and
+contribute to ``allowlisted_score`` (not ``optional_score``). The tool exits
+non-zero if any declared field is absent or has the wrong type, regardless of
+mode. Undeclared optional fields remain in ``optional_cov`` and are never
+penalized. A warning is emitted for any declared field name that does not
+exist in the schema.
 
 Deployment of The Project
 =========================
 
 **Consideration**: The Project should be easy to deploy:
 
-1. Locally as part of a developer's toolchain.
+1. Locally as command line interface (CLI) that can be run as part of a 
+   developer's toolchain.
 2. In continuous integration (CI) pipelines. Limit our focus to GitHub Actions
    for now.
 3. As a web service. Ideally users would be able to upload inputs/outputs via a
-   web interface and get correctness and coverage reports back.
+   GitHub pages and get correctness and coverage reports back.
 
 **Motivation**: The Project is primarily envisioned as being a developer tool
 to aid developers in ensuring that they remain compliant with QCSchema. Making, 
@@ -190,10 +242,41 @@ with QCSchema.
   but AFAIK the other way around is not true.
 - For CI deployment, we should provide a GitHub Action that can be easily added
   to existing workflows.
-- :ref:`react-jsonschema-form <https://rjsf-team.github.io/react-jsonschema-form/docs/>`__ 
-  may be useful for building the web interface.
 
-**Solution**: ???
+
+**Solution**:
+
+1. **CLI** — Implemented. The package installs a ``qcschema-validator`` entry
+   point via ``pyproject.toml``. Install with ``pip install git+https://github.com/rmrresearch/QCSChema-Validator.git``.
+2. **CI (GitHub Actions)** — Implemented. A reusable composite action lives at
+   ``.github/actions/validate/action.yml``. Other packages add it to their
+   workflows with:
+
+   .. code-block:: yaml
+
+      - uses: rmrresearch/QCSChema-Validator/.github/actions/validate@main
+        with:
+          file: output/result.json
+
+3. **Web service** — Implemented. Hosted on GitHub Pages at the repository's
+   Pages URL. Validation runs entirely in the browser via
+   `Pyodide <https://pyodide.org>`__ (CPython compiled to WebAssembly), so no
+   data leaves the user's machine and no backend server is required.
+
+   **Architecture**: ``qcelemental`` cannot run in Pyodide (C extensions, git
+   VCS dep). The workaround is a build-time step (``webapp/build_schemas.py``)
+   that imports ``qcelemental`` in a normal CPython environment, calls
+   ``model.model_json_schema()`` on every model that has a ``schema_name``
+   default, and writes the results to static JSON files under
+   ``webapp/schemas/``. At runtime, the browser fetches the relevant schema
+   JSON and passes it to ``webapp/validator.py``, a pure-Python module that
+   checks field presence and basic types without needing ``qcelemental`` at
+   all. ``pyyaml`` (the only runtime micropip install) provides YAML support;
+   ``json`` and ``tomllib`` are CPython builtins.
+
+   The deploy workflow (``.github/workflows/deploy-pages.yml``) regenerates
+   the schema files on every push to ``main``, so the web UI stays in sync
+   with QCElemental automatically.
 
 Synching The Project with QCSchema
 ==================================
@@ -212,7 +295,7 @@ version of QCSchema.
 - I suspect this can be done through reflection/introspection features of Python
   and/or Pydantic.
 
-**Solution**: ???
+**Solution**: We will work on this after the v2 release.
 
 ***************************
 Algorithms for Key Features

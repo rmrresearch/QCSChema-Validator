@@ -1,19 +1,12 @@
-# This is a basic workflow to help you get started with Actions
-
 name: tests
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   test:
-    # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -21,12 +14,9 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.12"]
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -47,3 +37,162 @@ jobs:
         run: |
           pip install pytest
           pytest -q
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Check distribution metadata
+        run: |
+          pip install twine
+          twine check dist/*
+
+      # PyPI rejects packages whose Requires-Dist metadata contains direct URLs
+      # (e.g. "pkg @ git+https://..."). This check catches that before an upload
+      # attempt so the problem surfaces at PR review time rather than deploy time.
+      - name: Check for VCS/direct-URL dependencies
+        run: |
+          python - <<'EOF'
+          import zipfile, glob, sys
+          wheels = glob.glob("dist/*.whl")
+          if not wheels:
+              print("No wheel found in dist/.", file=sys.stderr)
+              sys.exit(1)
+          with zipfile.ZipFile(wheels[0]) as z:
+              meta = next(n for n in z.namelist() if n.endswith("/METADATA"))
+              content = z.read(meta).decode()
+          bad = [
+              line for line in content.splitlines()
+              if line.startswith("Requires-Dist:") and (" @ " in line or "git+" in line.lower())
+          ]
+          if bad:
+              print("ERROR: VCS/direct-URL dependencies found — PyPI will reject this package:")
+              for b in bad:
+                  print(f"  {b}")
+              sys.exit(1)
+          print("OK: no VCS/direct-URL dependencies found.")
+          EOF
+
+      - name: Install from wheel and smoke test
+        run: |
+          pip install dist/*.whl
+          python -c "import qcschema_validator; print('import OK')"
+          qcschema-validator --help
+
+      - name: Upload distributions as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate known-good file
+        uses: ./.github/actions/validate
+        with:
+          file: tests/known_good.json
+
+      - name: Validate known-bad file (expect failure)
+        id: bad
+        uses: ./.github/actions/validate
+        with:
+          file: tests/known_bad.json
+        continue-on-error: true
+
+      - name: Assert known-bad file was rejected
+        run: |
+          if [ "${{ steps.bad.outcome }}" != "failure" ]; then
+            echo "Expected action to fail on known_bad.json but it succeeded"
+            exit 1
+          fi
+
+      - name: Coverage mode with subset file
+        uses: ./.github/actions/validate
+        with:
+          file: tests/known_good.json
+          mode: coverage
+          subset: tests/subset_molecule.json
+
+  webapp:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Build webapp schemas
+        run: python webapp/build_schemas.py
+
+      - name: Verify manifest contains expected schemas
+        run: |
+          python - <<'EOF'
+          import json, sys
+          manifest = json.loads(open("webapp/schemas/manifest.json").read())
+          expected = [
+              "qcschema_molecule",
+              "qcschema_atomic_input",
+              "qcschema_atomic_specification",
+              "qcschema_optimization_input",
+          ]
+          missing = [s for s in expected if s not in manifest]
+          if missing:
+              print("ERROR: missing schemas in manifest:", missing, file=sys.stderr)
+              sys.exit(1)
+          print(f"OK: manifest has {len(manifest)} schemas: {sorted(manifest)}")
+          EOF
+
+      - name: Validate known-good file via validator.py
+        run: |
+          python - <<'EOF'
+          import json, sys
+
+          exec(open("webapp/validator.py").read(), globals())
+
+          good = open("tests/known_good.json").read()
+          schema_str = open("webapp/schemas/qcschema_molecule.json").read()
+          result = run(good, "json", schema_str)
+          assert result["error"] is None, f"Unexpected error: {result['error']}"
+          assert result["required_score"] == 1.0, f"Expected required_score=1.0, got {result['required_score']}"
+          print(f"OK: known_good.json  required={result['required_score']:.0%}  optional={result['optional_score']:.0%}")
+
+          bad = open("tests/known_bad.json").read()
+          result2 = run(bad, "json", schema_str)
+          assert result2["required_score"] < 1.0, f"Expected required_score<1.0, got {result2['required_score']}"
+          print(f"OK: known_bad.json   required={result2['required_score']:.0%}  (correctly fails)")
+          EOF
+
+      - name: Validate known-good AtomicInput via validator.py
+        run: |
+          python - <<'EOF'
+          import json, sys
+
+          exec(open("webapp/validator.py").read(), globals())
+
+          good = open("tests/known_good_atomic_input.json").read()
+          schema_str = open("webapp/schemas/qcschema_atomic_input.json").read()
+          result = run(good, "json", schema_str)
+          assert result["error"] is None, f"Unexpected error: {result['error']}"
+          assert result["required_score"] == 1.0, f"Expected required_score=1.0, got {result['required_score']}"
+          req_fields = set(result["required_cov"])
+          assert req_fields == {"molecule", "specification"}, f"Wrong required fields: {req_fields}"
+          print(f"OK: known_good_atomic_input.json  required={result['required_score']:.0%}  required_fields={sorted(req_fields)}")
+          EOF

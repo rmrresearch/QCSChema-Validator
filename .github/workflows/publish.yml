@@ -1,0 +1,32 @@
+name: Publish to PyPI
+
+# Triggers when a PR is merged into main (or a direct push to main).
+# Requires the "build" job in tests.yml to have passed first — enforce this
+# via a branch protection rule that requires the "build" status check before
+# merging. The publish job uses PyPI Trusted Publishing (OIDC) so no API
+# token secrets are needed.
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/qcschema-validator/
+    permissions:
+      id-token: write  # required for OIDC trusted publishing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

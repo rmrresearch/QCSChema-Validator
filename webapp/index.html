@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QCSchema Validator</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --border: #dee2e6;
+      --text: #212529;
+      --muted: #6c757d;
+      --accent: #0d6efd;
+      --pass: #198754;
+      --fail: #dc3545;
+      --pass-bg: #d1e7dd;
+      --fail-bg: #f8d7da;
+      --warn-bg: #fff3cd;
+      --row-alt: #f2f2f2;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 820px; margin: 0 auto; }
+
+    h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.95rem; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    label { display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem; }
+
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      padding: 0.5rem;
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    input[type="file"]:hover { border-color: var(--accent); }
+
+    .mode-row {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 1rem;
+      align-items: center;
+    }
+
+    .mode-row label { font-weight: normal; margin-bottom: 0; display: flex; gap: 0.4rem; align-items: center; cursor: pointer; }
+
+    button {
+      margin-top: 1.25rem;
+      padding: 0.55rem 1.4rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button:not(:disabled):hover { opacity: 0.85; }
+
+    /* Status bar */
+    #status {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.6rem;
+      min-height: 1.2em;
+    }
+
+    /* Result banner */
+    .banner {
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .banner.pass { background: var(--pass-bg); color: var(--pass); }
+    .banner.fail { background: var(--fail-bg); color: var(--fail); }
+    .banner.warn { background: var(--warn-bg); color: #664d03; }
+
+    /* Score pills */
+    .scores {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .score-pill {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.88rem;
+    }
+
+    .score-pill strong { font-size: 1.05rem; }
+
+    /* Field table */
+    details summary {
+      cursor: pointer;
+      font-weight: 600;
+      padding: 0.5rem 0;
+      user-select: none;
+      color: var(--accent);
+      font-size: 0.9rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 0.5rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 0.4rem 0.6rem;
+      background: var(--bg);
+      border-bottom: 2px solid var(--border);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    td {
+      padding: 0.35rem 0.6rem;
+      border-bottom: 1px solid var(--border);
+      font-family: ui-monospace, monospace;
+    }
+
+    tr:nth-child(even) td { background: var(--row-alt); }
+
+    .ok   { color: var(--pass); font-weight: 700; }
+    .bad  { color: var(--fail); font-weight: 700; }
+    .tag  { display: inline-block; border-radius: 3px; padding: 0 0.35rem; font-size: 0.75rem; font-weight: 700; margin-left: 0.4rem; }
+    .tag.req { background: #cfe2ff; color: #084298; }
+    .tag.opt { background: #e2e3e5; color: #41464b; }
+
+    #result { display: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>QCSchema Validator</h1>
+  <p class="subtitle">Upload a QCSchema file and validate it against the standard in your browser — no data leaves your machine.</p>
+
+  <div class="card">
+    <label for="fileInput">File (.json, .yaml, .yml, .toml)</label>
+    <input type="file" id="fileInput" accept=".json,.yaml,.yml,.toml" />
+
+    <div class="mode-row">
+      <span style="font-weight:600;font-size:0.9rem;">Mode:</span>
+      <label><input type="radio" name="mode" value="validate" checked /> Validate</label>
+      <label><input type="radio" name="mode" value="coverage" /> Coverage</label>
+    </div>
+
+    <button id="runBtn" disabled>Validate</button>
+    <div id="status">Loading Python runtime&hellip;</div>
+  </div>
+
+  <div id="result" class="card"></div>
+</div>
+
+<script>
+  // -------------------------------------------------------------------------
+  // State
+  // -------------------------------------------------------------------------
+  let pyodide = null;
+  let manifest = null;
+  const schemaCache = {};
+
+  // -------------------------------------------------------------------------
+  // Init
+  // -------------------------------------------------------------------------
+  async function init() {
+    setStatus("Loading Pyodide runtime…");
+    pyodide = await loadPyodide();
+
+    setStatus("Installing Python packages…");
+    await pyodide.loadPackage("micropip");
+    const micropip = pyodide.pyimport("micropip");
+    await micropip.install(["pyyaml"]);
+
+    setStatus("Loading validator…");
+    const validatorSrc = await fetch("validator.py").then(r => {
+      if (!r.ok) throw new Error(`Failed to load validator.py: ${r.status}`);
+      return r.text();
+    });
+    pyodide.runPython(validatorSrc);
+
+    setStatus("Loading schema manifest…");
+    manifest = await fetch("schemas/manifest.json").then(r => {
+      if (!r.ok) throw new Error(`Failed to load manifest.json: ${r.status}`);
+      return r.json();
+    });
+
+    document.getElementById("runBtn").disabled = false;
+    setStatus(`Ready. ${Object.keys(manifest).length} schemas available.`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Schema fetch
+  // -------------------------------------------------------------------------
+  async function fetchSchema(schemaName) {
+    if (schemaCache[schemaName]) return schemaCache[schemaName];
+    const filename = manifest[schemaName];
+    if (!filename) return null;
+    const text = await fetch(`schemas/${filename}`).then(r => r.text());
+    schemaCache[schemaName] = text;
+    return text;
+  }
+
+  // -------------------------------------------------------------------------
+  // Run
+  // -------------------------------------------------------------------------
+  document.getElementById("runBtn").addEventListener("click", async () => {
+    const file = document.getElementById("fileInput").files[0];
+    if (!file) { setStatus("Please choose a file first."); return; }
+
+    const mode = document.querySelector('input[name="mode"]:checked').value;
+    const ext  = file.name.split(".").pop() || "json";
+    const text = await file.text();
+
+    setStatus("Detecting schema…");
+    pyodide.globals.set("_text", text);
+    pyodide.globals.set("_ext", ext);
+    const schemaName = pyodide.runPython("get_schema_name(_text, _ext)");
+
+    if (!schemaName) {
+      showError("Could not determine schema_name from the file. Make sure the file parses correctly and has a schema_name field.");
+      return;
+    }
+
+    const schemaStr = await fetchSchema(schemaName);
+    if (!schemaStr) {
+      showError(`Schema '${schemaName}' is not recognized. Available schemas: ${Object.keys(manifest).join(", ")}`);
+      return;
+    }
+
+    setStatus("Validating…");
+    pyodide.globals.set("_schema_str", schemaStr);
+    const rawResult = pyodide.runPython("run(_text, _ext, _schema_str)");
+    const result = rawResult.toJs({ dict_converter: Object.fromEntries });
+
+    renderResult(result, mode, file.name);
+    setStatus(`Done.`);
+  });
+
+  // -------------------------------------------------------------------------
+  // Rendering
+  // -------------------------------------------------------------------------
+  function renderResult(r, mode, filename) {
+    const el = document.getElementById("result");
+    el.style.display = "block";
+
+    if (r.error) { el.innerHTML = banner("warn", "⚠️ " + escHtml(r.error)); return; }
+
+    const reqPct  = pct(r.required_score);
+    const optPct  = pct(r.optional_score);
+    const passed  = r.required_score === 1.0;
+
+    let html = "";
+
+    // Banner
+    if (mode === "validate") {
+      html += banner(passed ? "pass" : "fail",
+        (passed ? "✅ PASS" : "❌ FAIL") +
+        ` — ${escHtml(filename)} <span style="font-weight:400;font-size:0.9rem">(${escHtml(r.schema_name)})</span>`);
+    } else {
+      html += banner(passed ? "pass" : "fail",
+        (passed ? "✅" : "❌") +
+        ` ${escHtml(r.schema_name)} coverage`);
+    }
+
+    // Score pills
+    html += `<div class="scores">
+      <div class="score-pill">Required <strong style="color:${passed ? "var(--pass)" : "var(--fail)"};">${reqPct}</strong></div>
+      <div class="score-pill">Optional <strong>${optPct}</strong></div>
+    </div>`;
+
+    // Field tables (collapsible)
+    const reqRows = buildRows(r.required_cov, "req");
+    const optRows = buildRows(r.optional_cov, "opt");
+
+    if (reqRows) {
+      html += `<details ${!passed ? "open" : ""}>
+        <summary>Required fields (${passed ? "all pass" : "see failures below"})</summary>
+        ${fieldTable(reqRows)}
+      </details>`;
+    }
+
+    if (optRows) {
+      html += `<details style="margin-top:0.75rem">
+        <summary>Optional fields</summary>
+        ${fieldTable(optRows)}
+      </details>`;
+    }
+
+    el.innerHTML = html;
+  }
+
+  function buildRows(cov, tag) {
+    if (!cov || !Object.keys(cov).length) return null;
+    return Object.entries(cov)
+      .sort((a, b) => {
+        if (a[1] !== b[1]) return a[1] ? 1 : -1; // failures first
+        return a[0].localeCompare(b[0]);
+      })
+      .map(([field, ok]) =>
+        `<tr><td>${escHtml(field)}<span class="tag ${tag}">${tag}</span></td>` +
+        `<td class="${ok ? "ok" : "bad"}">${ok ? "✓ pass" : "✗ fail"}</td></tr>`
+      ).join("");
+  }
+
+  function fieldTable(rows) {
+    return `<table><thead><tr><th>Field</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function banner(cls, content) {
+    return `<div class="banner ${cls}">${content}</div>`;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("result");
+    el.style.display = "block";
+    el.innerHTML = banner("warn", "⚠️ " + escHtml(msg));
+  }
+
+  function pct(score) { return `${Math.round(score * 100)}%`; }
+
+  function setStatus(msg) { document.getElementById("status").textContent = msg; }
+
+  function escHtml(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // -------------------------------------------------------------------------
+  init().catch(err => {
+    setStatus("Failed to initialise: " + err.message);
+    console.error(err);
+  });
+</script>
+</body>
+</html>
