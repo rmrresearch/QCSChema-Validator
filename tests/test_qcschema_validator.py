@@ -213,3 +213,35 @@ def test_cli_subset_missing_field_exits_nonzero():
 def test_cli_subset_coverage_shows_declared_line():
     proc = run_cli(["--coverage", str(_MOLECULE_GOOD), "--subset", str(_SUBSET_PRESENT)])
     assert "Coverage of Declared Optional Values:" in proc.stdout
+
+
+# ---------------------------------------------------------------------------
+# wrong-typed required fields
+# ---------------------------------------------------------------------------
+# symbols and geometry are the required fields of qcschema_molecule and both
+# are numpy arrays. A value that qcelemental cannot cast to an array with at
+# least one dimension must show False, the same as a missing field.
+# known_bad_geometry_type.json and known_bad_symbols_type.json cover the CLI
+# side through BAD_FILES.
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("geometry", "hello"),
+        ("geometry", None),
+        ("geometry", {"x": 1}),
+        ("geometry", 5),
+        ("geometry", ["a", "b", "c"]),
+        ("geometry", [{"x": 1}]),
+        ("geometry", [[0, 0, 0], [1]]),  # ragged
+        ("symbols", 5),
+        ("symbols", None),
+        ("symbols", "HeHe"),
+    ],
+)
+def test_wrong_typed_required_field_shows_false(field, value):
+    data = parse_config(_MOLECULE_GOOD)
+    data[field] = value
+    result = validate_data_against_schemas(data)
+    assert result.required_cov[field] is False
+    assert result.required_score < 1.0
