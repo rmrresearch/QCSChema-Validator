@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-
 from typing import Annotated, Any, get_origin
-
 
 import numpy as np
 from pydantic import ConfigDict, PydanticUserError, TypeAdapter, ValidationError
